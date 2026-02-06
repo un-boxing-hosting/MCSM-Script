@@ -1291,7 +1291,9 @@ print_install_result() {
 
 install_mcsm() {
   local components=()
-
+  
+	install_component "common"
+	
   if [[ "$install_web" == true ]]; then
     install_component "web"
     create_systemd_service "web"
@@ -1303,7 +1305,7 @@ install_mcsm() {
     create_systemd_service "daemon"
     components+=("daemon")
   fi
-
+	
   # Reload systemd after any service file changes
   if (( ${#components[@]} > 0 )); then
     cprint cyan "Reloading systemd daemon..."
