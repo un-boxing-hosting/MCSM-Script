@@ -26,9 +26,13 @@ package_name="mcsmanager_linux_release.tar.gz"
 # Node.js version to be installed
 # Keep the leading "v"
 node_version="v20.12.2"
+node_version_centos7="v16.20.2"
 
 # Node download base URL - primary
 node_download_url_base="https://nodejs.org/dist/"
+
+# Unoffical build of Node.js, for more ISA support
+node_unoffical_build_url="https://unofficial-builds.nodejs.org/download/release/"
 
 # Node download URL - fallback.
 # This is the URL points directly to the file, not the base. This can also be a local absolute path.
@@ -483,6 +487,16 @@ detect_os_info() {
   cprint cyan "Detected Architecture: $arch"
 }
 
+version_specific_rules() {
+    # Default: do nothing unless a rule matches
+
+    if [[ "$distro" == "CentOS" && "$version" == "7" ]]; then
+        cprint yellow "Detected CentOS 7 — overriding Node.js version."
+        node_version="$node_version_centos7"
+        required_node_ver="${node_version#v}"
+    fi
+}
+
 # Check if all required commands are available
 check_required_commands() {
   local missing=0
@@ -656,6 +670,11 @@ resolve_node_arch() {
       ;;
     armv7l)
       node_arch="armv7l"
+      ;;
+    loongarch64)
+      node_arch="loong64"
+      # Use unoffical build
+      node_download_url_base=$node_unoffical_build_url
       ;;
     *)
       cprint red bold "Unsupported architecture for Node.js: $arch"
@@ -1025,6 +1044,11 @@ install_component() {
     exit 1
   fi
 
+  cprint cyan "Removing node_modules folder: $target_path/node_modules/"
+  if [[ -d "$target_path/node_modules/" ]]; then
+    rm -rf "$target_path/node_modules/"
+  fi
+
   if cp -a "$source_path"/. "$target_path"; then
     cprint green "Updated files from $source_path → $target_path"
     rm -rf "$source_path"
@@ -1340,6 +1364,8 @@ main() {
   safe_run check_root "Script must be run as root"
   safe_run parse_args "Failed to parse arguments" "$@"
   safe_run detect_os_info "Failed to detect OS"
+  safe_run version_specific_rules "Failed to apply distro/version specific rules"
+
   # To be moved to a master pre check function.
   safe_run resolve_node_arch "Failed to resolve Node.js architecture"
   
@@ -1349,6 +1375,9 @@ main() {
   if [ "$install_node" = true ]; then
     safe_run install_node "Node.js installation failed"
   fi
+
+  # npm lifecycle scripts resolve node through PATH.
+  export PATH="${node_path}/bin:${PATH}"
 
   safe_run permission_barrier "Permission validation failed — aborting install"
 
